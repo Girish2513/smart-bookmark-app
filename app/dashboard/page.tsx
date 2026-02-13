@@ -2,8 +2,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import AddBookmarkForm from '@/components/AddBookmarkForm'
 import BookmarkList from '@/components/BookmarkList'
-import LogoutButton from '@/components/LogoutButton'
-import { BookmarkIcon, User } from 'lucide-react'
+import UserProfile from '@/components/UserProfile'
+import { BookmarkIcon } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,23 +39,7 @@ export default async function DashboardPage() {
             <h1 className="text-xl font-bold text-gray-900">Smart Bookmark</h1>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
-                {user.user_metadata?.avatar_url ? (
-                  <img
-                    src={user.user_metadata.avatar_url}
-                    alt="Profile"
-                    className="w-8 h-8 rounded-full"
-                  />
-                ) : (
-                  <User className="w-4 h-4" />
-                )}
-              </div>
-              <span className="hidden sm:inline">{user.user_metadata?.full_name || user.email}</span>
-            </div>
-            <LogoutButton />
-          </div>
+          <UserProfile initialUser={user} />
         </div>
       </header>
 
