@@ -61,10 +61,7 @@ export default async function DashboardPage() {
 
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <AddBookmarkForm 
-          userId={user.id} 
-          onBookmarkAdded={() => {}} 
-        />
+        <AddBookmarkForm userId={user.id} />
         
         <BookmarkList 
           initialBookmarks={bookmarks} 

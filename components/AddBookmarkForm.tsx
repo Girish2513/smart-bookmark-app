@@ -6,7 +6,7 @@ import type { BookmarkInsert } from '@/types/bookmark'
 
 interface AddBookmarkFormProps {
   userId: string
-  onBookmarkAdded: () => void
+  onBookmarkAdded?: () => void
 }
 
 export default function AddBookmarkForm({ userId, onBookmarkAdded }: AddBookmarkFormProps) {
@@ -42,7 +42,7 @@ export default function AddBookmarkForm({ userId, onBookmarkAdded }: AddBookmark
 
       setUrl('')
       setTitle('')
-      onBookmarkAdded()
+      onBookmarkAdded?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add bookmark')
     } finally {
