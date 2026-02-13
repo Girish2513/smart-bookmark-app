@@ -6,10 +6,9 @@ import type { BookmarkInsert } from '@/types/bookmark'
 
 interface AddBookmarkFormProps {
   userId: string
-  onBookmarkAdded?: () => void
 }
 
-export default function AddBookmarkForm({ userId, onBookmarkAdded }: AddBookmarkFormProps) {
+export default function AddBookmarkForm({ userId }: AddBookmarkFormProps) {
   const [url, setUrl] = useState('')
   const [title, setTitle] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -40,9 +39,13 @@ export default function AddBookmarkForm({ userId, onBookmarkAdded }: AddBookmark
 
       if (error) throw error
 
+      // Clear form
       setUrl('')
       setTitle('')
-      onBookmarkAdded?.()
+      
+      // Dispatch event to refresh bookmark list immediately
+      window.dispatchEvent(new CustomEvent('bookmarks:refresh'))
+      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add bookmark')
     } finally {

@@ -36,8 +36,8 @@ export default function BookmarkList({ initialBookmarks, userId }: BookmarkListP
 
   // Set up real-time subscription
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let channel: any = null
+    let retryTimeout: NodeJS.Timeout | null = null
 
     const setupRealtime = async () => {
       try {
@@ -46,7 +46,7 @@ export default function BookmarkList({ initialBookmarks, userId }: BookmarkListP
 
         // Subscribe to bookmarks table changes
         channel = supabase
-          .channel('bookmarks_changes')
+          .channel(`bookmarks:user_${userId}`)
           .on(
             'postgres_changes',
             {
@@ -55,12 +55,12 @@ export default function BookmarkList({ initialBookmarks, userId }: BookmarkListP
               table: 'bookmarks',
               filter: `user_id=eq.${userId}`,
             },
-            (payload) => {
-              console.log('Real-time update:', payload)
+            (payload: any) => {
+              console.log('Real-time update received:', payload)
               
               if (payload.eventType === 'INSERT') {
                 setBookmarks((prev) => {
-                  // Check if already exists (optimistic update might have added it)
+                  // Check if already exists
                   if (prev.find((b) => b.id === payload.new.id)) {
                     return prev
                   }
@@ -75,9 +75,17 @@ export default function BookmarkList({ initialBookmarks, userId }: BookmarkListP
               }
             }
           )
-          .subscribe((status) => {
+          .subscribe((status: string) => {
             console.log('Realtime subscription status:', status)
             setIsRealtimeConnected(status === 'SUBSCRIBED')
+            
+            // Retry if not subscribed
+            if (status !== 'SUBSCRIBED' && status !== 'CHANNEL_ERROR') {
+              retryTimeout = setTimeout(() => {
+                console.log('Retrying realtime subscription...')
+                setupRealtime()
+              }, 3000)
+            }
           })
       } catch (err) {
         console.error('Failed to setup realtime:', err)
@@ -87,11 +95,22 @@ export default function BookmarkList({ initialBookmarks, userId }: BookmarkListP
     setupRealtime()
 
     return () => {
+      if (retryTimeout) clearTimeout(retryTimeout)
       if (channel) {
         channel.unsubscribe()
       }
     }
   }, [userId])
+
+  // Listen for custom refresh event from AddBookmarkForm
+  useEffect(() => {
+    const handleRefresh = () => {
+      fetchBookmarks()
+    }
+    
+    window.addEventListener('bookmarks:refresh', handleRefresh)
+    return () => window.removeEventListener('bookmarks:refresh', handleRefresh)
+  }, [fetchBookmarks])
 
   const handleRefresh = () => {
     fetchBookmarks()
@@ -114,11 +133,13 @@ export default function BookmarkList({ initialBookmarks, userId }: BookmarkListP
           Your Bookmarks ({bookmarks.length})
         </h2>
         <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">
+            {isRealtimeConnected ? '● Live' : '● Connecting...'}
+          </span>
           <div
             className={`w-2 h-2 rounded-full ${
               isRealtimeConnected ? 'bg-green-500' : 'bg-yellow-500'
             }`}
-            title={isRealtimeConnected ? 'Real-time connected' : 'Connecting...'}
           />
           <button
             onClick={handleRefresh}
