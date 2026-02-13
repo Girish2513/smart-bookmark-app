@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import BookmarkItem from './BookmarkItem'
 import type { Bookmark } from '@/types/bookmark'
 import { BookmarkIcon, RefreshCw } from 'lucide-react'
@@ -13,6 +13,8 @@ interface BookmarkListProps {
 export default function BookmarkList({ initialBookmarks, userId }: BookmarkListProps) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialBookmarks)
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false)
+  const [lastUpdate, setLastUpdate] = useState<string>('')
+  const channelRef = useRef<any>(null)
 
   // Function to fetch latest bookmarks
   const fetchBookmarks = useCallback(async () => {
@@ -27,6 +29,7 @@ export default function BookmarkList({ initialBookmarks, userId }: BookmarkListP
         .order('created_at', { ascending: false })
 
       if (!error && data) {
+        console.log('Fetched bookmarks:', data.length)
         setBookmarks(data)
       }
     } catch (err) {
@@ -36,17 +39,19 @@ export default function BookmarkList({ initialBookmarks, userId }: BookmarkListP
 
   // Set up real-time subscription
   useEffect(() => {
-    let channel: any = null
-    let retryTimeout: NodeJS.Timeout | null = null
-
     const setupRealtime = async () => {
       try {
         const { createClient } = await import('@/lib/supabase/client')
         const supabase = createClient()
 
+        // Clean up existing channel if any
+        if (channelRef.current) {
+          channelRef.current.unsubscribe()
+        }
+
         // Subscribe to bookmarks table changes
-        channel = supabase
-          .channel(`bookmarks:user_${userId}`)
+        channelRef.current = supabase
+          .channel(`bookmarks:${userId}`)
           .on(
             'postgres_changes',
             {
@@ -57,14 +62,16 @@ export default function BookmarkList({ initialBookmarks, userId }: BookmarkListP
             },
             (payload: any) => {
               console.log('Real-time update received:', payload)
+              setLastUpdate(new Date().toLocaleTimeString())
               
               if (payload.eventType === 'INSERT') {
+                const newBookmark = payload.new as Bookmark
                 setBookmarks((prev) => {
                   // Check if already exists
-                  if (prev.find((b) => b.id === payload.new.id)) {
+                  if (prev.find((b) => b.id === newBookmark.id)) {
                     return prev
                   }
-                  return [payload.new as Bookmark, ...prev]
+                  return [newBookmark, ...prev]
                 })
               } else if (payload.eventType === 'DELETE') {
                 setBookmarks((prev) => prev.filter((b) => b.id !== payload.old.id))
@@ -78,14 +85,6 @@ export default function BookmarkList({ initialBookmarks, userId }: BookmarkListP
           .subscribe((status: string) => {
             console.log('Realtime subscription status:', status)
             setIsRealtimeConnected(status === 'SUBSCRIBED')
-            
-            // Retry if not subscribed
-            if (status !== 'SUBSCRIBED' && status !== 'CHANNEL_ERROR') {
-              retryTimeout = setTimeout(() => {
-                console.log('Retrying realtime subscription...')
-                setupRealtime()
-              }, 3000)
-            }
           })
       } catch (err) {
         console.error('Failed to setup realtime:', err)
@@ -95,12 +94,24 @@ export default function BookmarkList({ initialBookmarks, userId }: BookmarkListP
     setupRealtime()
 
     return () => {
-      if (retryTimeout) clearTimeout(retryTimeout)
-      if (channel) {
-        channel.unsubscribe()
+      if (channelRef.current) {
+        channelRef.current.unsubscribe()
       }
     }
   }, [userId])
+
+  // Refresh when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Tab became visible, refreshing bookmarks...')
+        fetchBookmarks()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [fetchBookmarks])
 
   // Listen for custom refresh event from AddBookmarkForm
   useEffect(() => {
@@ -133,12 +144,15 @@ export default function BookmarkList({ initialBookmarks, userId }: BookmarkListP
           Your Bookmarks ({bookmarks.length})
         </h2>
         <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">
+            {lastUpdate && `Updated: ${lastUpdate}`}
+          </span>
           <span className="text-xs text-gray-500">
-            {isRealtimeConnected ? '● Live' : '● Connecting...'}
+            {isRealtimeConnected ? '● Live' : '● Offline'}
           </span>
           <div
             className={`w-2 h-2 rounded-full ${
-              isRealtimeConnected ? 'bg-green-500' : 'bg-yellow-500'
+              isRealtimeConnected ? 'bg-green-500' : 'bg-red-500'
             }`}
           />
           <button

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Loader2 } from 'lucide-react'
+import { Plus, Loader2, Check } from 'lucide-react'
 import type { BookmarkInsert } from '@/types/bookmark'
 
 interface AddBookmarkFormProps {
@@ -13,11 +13,13 @@ export default function AddBookmarkForm({ userId }: AddBookmarkFormProps) {
   const [title, setTitle] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
+    setSuccess(false)
 
     // Validate URL
     let formattedUrl = url.trim()
@@ -35,15 +37,22 @@ export default function AddBookmarkForm({ userId }: AddBookmarkFormProps) {
         url: formattedUrl,
       }
 
-      const { error } = await supabase.from('bookmarks').insert(newBookmark)
+      const { data, error } = await supabase
+        .from('bookmarks')
+        .insert(newBookmark)
+        .select()
 
       if (error) throw error
+
+      console.log('Bookmark added:', data)
 
       // Clear form
       setUrl('')
       setTitle('')
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 2000)
       
-      // Dispatch event to refresh bookmark list immediately
+      // Dispatch event to refresh bookmark list immediately in this tab
       window.dispatchEvent(new CustomEvent('bookmarks:refresh'))
       
     } catch (err) {
@@ -90,6 +99,13 @@ export default function AddBookmarkForm({ userId }: AddBookmarkFormProps) {
         {error && (
           <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
             {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg flex items-center gap-2">
+            <Check className="w-4 h-4" />
+            Bookmark added successfully!
           </div>
         )}
 
