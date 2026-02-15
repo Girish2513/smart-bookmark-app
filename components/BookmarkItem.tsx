@@ -9,6 +9,30 @@ interface BookmarkItemProps {
   onDelete: () => void
 }
 
+// Sanitize URL to prevent XSS
+function sanitizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    // Only allow http and https
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return '#'
+    }
+    return url
+  } catch {
+    return '#'
+  }
+}
+
+// Check if URL is safe to render as a link
+function isSafeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 export default function BookmarkItem({ bookmark, onDelete }: BookmarkItemProps) {
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -43,6 +67,9 @@ export default function BookmarkItem({ bookmark, onDelete }: BookmarkItemProps) 
     })
   }
 
+  const safeUrl = sanitizeUrl(bookmark.url)
+  const isSafe = isSafeUrl(bookmark.url)
+
   return (
     <div className="group bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-4">
@@ -50,15 +77,21 @@ export default function BookmarkItem({ bookmark, onDelete }: BookmarkItemProps) 
           <h3 className="font-semibold text-gray-900 truncate mb-1">
             {bookmark.title}
           </h3>
-          <a
-            href={bookmark.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline truncate"
-          >
-            {bookmark.url}
-            <ExternalLink className="w-3 h-3 flex-shrink-0" />
-          </a>
+          {isSafe ? (
+            <a
+              href={safeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline truncate"
+            >
+              {bookmark.url}
+              <ExternalLink className="w-3 h-3 flex-shrink-0" />
+            </a>
+          ) : (
+            <span className="text-sm text-gray-500 truncate">
+              {bookmark.url} (Invalid URL)
+            </span>
+          )}
           <p className="text-xs text-gray-400 mt-2">
             Added {formatDate(bookmark.created_at)}
           </p>

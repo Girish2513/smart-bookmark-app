@@ -8,6 +8,17 @@ interface AddBookmarkFormProps {
   userId: string
 }
 
+// URL validation function
+function isValidUrl(urlString: string): boolean {
+  try {
+    const url = new URL(urlString)
+    // Only allow http and https protocols
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 export default function AddBookmarkForm({ userId }: AddBookmarkFormProps) {
   const [url, setUrl] = useState('')
   const [title, setTitle] = useState('')
@@ -21,10 +32,26 @@ export default function AddBookmarkForm({ userId }: AddBookmarkFormProps) {
     setError(null)
     setSuccess(false)
 
-    // Validate URL
+    // Trim the input
     let formattedUrl = url.trim()
-    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+
+    // Check for dangerous protocols (XSS prevention)
+    if (formattedUrl.startsWith('javascript:') || formattedUrl.startsWith('data:') || formattedUrl.startsWith('vbscript:')) {
+      setError('Invalid URL. JavaScript and data URLs are not allowed for security reasons.')
+      setIsLoading(false)
+      return
+    }
+
+    // Add https:// if no protocol
+    if (!formattedUrl.match(/^https?:\/\//i)) {
       formattedUrl = `https://${formattedUrl}`
+    }
+
+    // Validate URL format
+    if (!isValidUrl(formattedUrl)) {
+      setError('Please enter a valid URL (e.g., https://example.com)')
+      setIsLoading(false)
+      return
     }
 
     try {
@@ -72,7 +99,7 @@ export default function AddBookmarkForm({ userId }: AddBookmarkFormProps) {
             URL *
           </label>
           <input
-            type="text"
+            type="url"
             id="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
@@ -80,6 +107,9 @@ export default function AddBookmarkForm({ userId }: AddBookmarkFormProps) {
             className="w-full px-4 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
             required
           />
+          <p className="text-xs text-gray-500 mt-1">
+            Must start with http:// or https://
+          </p>
         </div>
 
         <div>
