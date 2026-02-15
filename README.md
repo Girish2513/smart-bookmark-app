@@ -2,6 +2,10 @@
 
 A simple bookmark manager with Google OAuth, real-time sync, and private bookmarks per user.
 
+## Live Demo
+
+**Vercel URL:** https://smart-bookmark-app-rcpn.vercel.app
+
 ## Features
 
 - ✅ **Google OAuth** - Sign in with Google (no password needed)
@@ -9,6 +13,7 @@ A simple bookmark manager with Google OAuth, real-time sync, and private bookmar
 - ✅ **Private Bookmarks** - Each user only sees their own bookmarks
 - ✅ **Real-time Sync** - Changes appear instantly across all tabs
 - ✅ **Delete Bookmarks** - Remove bookmarks you no longer need
+- ✅ **URL Validation** - Security checks to prevent XSS attacks
 - ✅ **Deployed on Vercel** - Live URL ready for testing
 
 ## Tech Stack
@@ -131,9 +136,10 @@ app/
 components/
 ├── LoginButton.tsx          # Google sign-in button
 ├── LogoutButton.tsx         # Sign out button
-├── AddBookmarkForm.tsx      # Form to add bookmarks
+├── AddBookmarkForm.tsx      # Form to add bookmarks with validation
 ├── BookmarkList.tsx         # Real-time bookmark list
-└── BookmarkItem.tsx         # Individual bookmark card
+├── BookmarkItem.tsx         # Individual bookmark card with XSS protection
+└── UserProfile.tsx          # User profile with auto-refresh
 
 lib/supabase/
 ├── client.ts                # Browser client (realtime)
@@ -166,17 +172,54 @@ supabase.channel('bookmarks_changes')
 - **Google OAuth** handles authentication securely
 - **Environment variables** keep secrets out of code
 - **Middleware** protects routes based on auth status
+- **XSS Prevention**: URLs are validated to block `javascript:`, `data:`, and other dangerous protocols
+- **URL Sanitization**: All URLs are checked before rendering as links
 
 ## Challenges & Solutions
 
 ### Challenge 1: Real-time updates not working
-**Solution:** Had to enable realtime for the bookmarks table in Supabase and ensure the publication was set up correctly.
+**Problem:** Bookmarks added in one tab didn't appear in another tab automatically.
+**Solution:** Had to enable realtime for the bookmarks table in Supabase using `ALTER PUBLICATION supabase_realtime ADD TABLE bookmarks;` and ensure the publication was set up correctly.
 
 ### Challenge 2: Google OAuth redirect issues
-**Solution:** Properly configured the callback URL in both Google Cloud Console and Supabase Auth settings.
+**Problem:** After Google sign-in, users were not redirected correctly back to the app.
+**Solution:** Properly configured the callback URL in both Google Cloud Console and Supabase Auth settings. Added `http://localhost:3000/auth/callback` for local dev and the Vercel URL for production.
 
 ### Challenge 3: Server vs Client Supabase clients
+**Problem:** Next.js 16 App Router requires different Supabase clients for server and browser.
 **Solution:** Created separate clients - one for server components (`server.ts`) using `createServerClient` and one for browser (`client.ts`) using `createBrowserClient`.
+
+### Challenge 4: Server Component passing function to Client Component
+**Problem:** Got error "Event handlers cannot be passed to Client Component props" because we were passing `onBookmarkAdded` callback from a Server Component to a Client Component.
+**Solution:** Made the callback optional and used `window.dispatchEvent` with a custom event to communicate between components instead of passing functions across server/client boundary.
+
+### Challenge 5: User profile not updating when switching accounts
+**Problem:** When a user signed out and logged in as a different user in one tab, other tabs still showed the old user's name until refresh.
+**Solution:** Created a `UserProfile` client component that listens for auth state changes using `supabase.auth.onAuthStateChange()` and refreshes on tab visibility change.
+
+### Challenge 6: URL validation and XSS prevention
+**Problem:** App accepted dangerous URLs like `javascript:alert('xss')` which could lead to XSS attacks.
+**Solution:** Implemented URL validation that:
+- Blocks dangerous protocols (javascript:, data:, vbscript:, file:, ftp:)
+- Auto-adds `https://` if no protocol is provided
+- Validates that the domain has a proper TLD (e.g., google.com is valid, google is not)
+- Sanitizes URLs on display in BookmarkItem component
+
+### Challenge 7: Input text visibility
+**Problem:** Text in URL and Title input fields was not visible (color blending with background).
+**Solution:** Added explicit `text-gray-900` and `bg-white` classes to input fields to ensure text is clearly visible.
+
+## Testing Checklist
+
+- [ ] Sign up/log in with Google
+- [ ] Add a bookmark with URL and title
+- [ ] Add bookmark with just URL (title auto-generated)
+- [ ] Try adding invalid URLs (should show error)
+- [ ] Try adding `javascript:alert('xss')` (should be blocked)
+- [ ] Open two tabs - add bookmark in one, see it appear in other (real-time)
+- [ ] Delete a bookmark
+- [ ] Sign out and sign in as different user - verify bookmarks are private
+- [ ] Verify user name updates when switching accounts
 
 ## License
 
