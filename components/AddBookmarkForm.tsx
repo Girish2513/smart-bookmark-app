@@ -8,6 +8,18 @@ interface AddBookmarkFormProps {
   userId: string
 }
 
+// Check if string looks like a valid domain (has at least one dot and valid characters)
+function looksLikeDomain(input: string): boolean {
+  // Remove protocol if present for domain check
+  const withoutProtocol = input.replace(/^https?:\/\//i, '')
+  
+  // Domain pattern: letters, numbers, hyphens, dots. Must have at least one dot (for TLD)
+  // Examples: google.com, girish-saana.vercel.app, sub.domain.co.uk
+  const domainPattern = /^[a-zA-Z0-9][a-zA-Z0-9-]*(\.[a-zA-Z0-9][a-zA-Z0-9-]*)+$/
+  
+  return domainPattern.test(withoutProtocol) && withoutProtocol.includes('.')
+}
+
 // URL validation function
 function isValidUrl(urlString: string): boolean {
   try {
@@ -17,6 +29,13 @@ function isValidUrl(urlString: string): boolean {
   } catch {
     return false
   }
+}
+
+// Check for dangerous protocols (XSS prevention)
+function hasDangerousProtocol(input: string): boolean {
+  const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:', 'ftp:']
+  const lowerInput = input.toLowerCase().trim()
+  return dangerousProtocols.some(protocol => lowerInput.startsWith(protocol))
 }
 
 export default function AddBookmarkForm({ userId }: AddBookmarkFormProps) {
@@ -33,23 +52,37 @@ export default function AddBookmarkForm({ userId }: AddBookmarkFormProps) {
     setSuccess(false)
 
     // Trim the input
-    let formattedUrl = url.trim()
+    const trimmedInput = url.trim()
+
+    if (!trimmedInput) {
+      setError('Please enter a URL')
+      setIsLoading(false)
+      return
+    }
 
     // Check for dangerous protocols (XSS prevention)
-    if (formattedUrl.startsWith('javascript:') || formattedUrl.startsWith('data:') || formattedUrl.startsWith('vbscript:')) {
+    if (hasDangerousProtocol(trimmedInput)) {
       setError('Invalid URL. JavaScript and data URLs are not allowed for security reasons.')
       setIsLoading(false)
       return
     }
 
-    // Add https:// if no protocol
-    if (!formattedUrl.match(/^https?:\/\//i)) {
-      formattedUrl = `https://${formattedUrl}`
+    // Auto-add https:// if no protocol
+    let formattedUrl = trimmedInput
+    if (!trimmedInput.match(/^https?:\/\//i)) {
+      formattedUrl = `https://${trimmedInput}`
     }
 
-    // Validate URL format
+    // Check if it looks like a valid domain (has TLD)
+    if (!looksLikeDomain(trimmedInput)) {
+      setError('Please enter a valid URL with a domain (e.g., google.com, example.org)')
+      setIsLoading(false)
+      return
+    }
+
+    // Final URL validation
     if (!isValidUrl(formattedUrl)) {
-      setError('Please enter a valid URL (e.g., https://example.com)')
+      setError('Please enter a valid URL')
       setIsLoading(false)
       return
     }
@@ -99,16 +132,16 @@ export default function AddBookmarkForm({ userId }: AddBookmarkFormProps) {
             URL *
           </label>
           <input
-            type="url"
+            type="text"
             id="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://example.com"
+            placeholder="example.com or https://example.com"
             className="w-full px-4 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
             required
           />
           <p className="text-xs text-gray-500 mt-1">
-            Must start with http:// or https://
+            https:// will be added automatically if needed
           </p>
         </div>
 
